@@ -18,13 +18,19 @@ st.set_page_config(page_title="Langfuse Test Chat", page_icon="💬")
 
 cot_monitor = CotMonitor()
 
+cwd = os.path.dirname(os.path.abspath(__file__))
+
+with open(os.path.join(cwd, "cot_monitor/prompts/side_goal.txt"), "r") as f:
+    side_goal = f.read()
+
 
 def call_gpt_with_monitoring(messages):
     """Call OpenAI ChatGPT API with Langfuse instrumentation."""
     with langfuse.start_as_current_span(name="call_gpt_with_monitoring") as span:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=2000,
+            system=side_goal,
+            max_tokens=4000,
             thinking={"type": "enabled", "budget_tokens": 2000},
             messages=messages,
         )
@@ -32,8 +38,10 @@ def call_gpt_with_monitoring(messages):
         output = response.content[1].text
         cot = response.content[0].thinking
 
-        action_score = cot_monitor.monitor_action(output)
-        cot_score = cot_monitor.monitor_cot(cot, output)
+        print(cot)
+
+        action_score = cot_monitor.monitor_action(messages[-1]["content"], output)
+        cot_score = cot_monitor.monitor_cot(messages[-1]["content"], cot, output)
         hybrid_score = cot_monitor.monitor_hybrid(action_score, cot_score)
 
         with langfuse.start_as_current_span(name="cot-monitoring") as span:
@@ -65,7 +73,7 @@ def call_gpt_with_monitoring(messages):
                 comment="Overall score",
             )
 
-        return response.choices[0].message.content
+        return output
 
 
 def main():
