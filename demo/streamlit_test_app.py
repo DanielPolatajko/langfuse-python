@@ -3,22 +3,69 @@ import openai
 from langfuse import observe
 import os
 from dotenv import load_dotenv
+from anthropic import Anthropic
+from cot_monitor.monitor import CotMonitor
+
+client = Anthropic()
 
 load_dotenv()
 
+from langfuse import get_client
+
+langfuse = get_client()
+
 st.set_page_config(page_title="Langfuse Test Chat", page_icon="💬")
 
+cot_monitor = CotMonitor()
 
-@observe()
-def call_chatgpt(messages):
-    """Call OpenAI ChatGPT API with Langfuse instrumentation"""
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    response = client.chat.completions.create(
-        model="gpt-oss-20b", messages=messages, max_tokens=500, temperature=0.7
-    )
+def call_gpt_with_monitoring(messages):
+    """Call OpenAI ChatGPT API with Langfuse instrumentation."""
+    with langfuse.start_as_current_span(name="call_gpt_with_monitoring") as span:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            thinking={"type": "enabled", "budget_tokens": 2000},
+            messages=messages,
+        )
 
-    return response.choices[0].message.content
+        output = response.content[1].text
+        cot = response.content[0].thinking
+
+        action_score = cot_monitor.monitor_action(output)
+        cot_score = cot_monitor.monitor_cot(cot, output)
+        hybrid_score = cot_monitor.monitor_hybrid(action_score, cot_score)
+
+        with langfuse.start_as_current_span(name="cot-monitoring") as span:
+            # Score the current span
+            span.score(
+                name="action-score",
+                value=action_score,
+                data_type="NUMERIC",
+                comment="Action score",
+            )
+            span.score(
+                name="cot-score",
+                value=cot_score,
+                data_type="NUMERIC",
+                comment="Cot score",
+            )
+            span.score(
+                name="hybrid-score",
+                value=hybrid_score,
+                data_type="NUMERIC",
+                comment="Hybrid score",
+            )
+
+            # Score the trace
+            span.score_trace(
+                name="overall-score",
+                value=hybrid_score,
+                data_type="NUMERIC",
+                comment="Overall score",
+            )
+
+        return response.choices[0].message.content
 
 
 def main():
@@ -48,7 +95,7 @@ def main():
             with st.spinner("Thinking..."):
                 try:
                     # Call ChatGPT with Langfuse instrumentation
-                    response = call_chatgpt(st.session_state.messages)
+                    response = call_gpt_with_monitoring(st.session_state.messages)
                     st.markdown(response)
 
                     # Add assistant response to chat history
