@@ -2,10 +2,17 @@ import openai
 import os
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 
 cwd = os.path.dirname(os.path.abspath(__file__))
+
+
+class CoTMonitorResponse(BaseModel):
+    score: float
+    reasoning: str
+    quotes: list[str] | None = None
 
 
 class CotMonitor:
@@ -35,7 +42,7 @@ class CotMonitor:
         )
         txt = response.choices[0].message.content
         score = float(txt.split("<answer>")[1].split("</answer>")[0])
-        return score
+        return CoTMonitorResponse(score=score, reasoning=txt)
 
     def monitor_cot(self, input: str, cot: str, action: str) -> float:
         """Monitor the models chain-of-thought."""
@@ -52,7 +59,11 @@ class CotMonitor:
         )
         txt = response.choices[0].message.content
         score = float(txt.split("<answer>")[1].split("</answer>")[0])
-        return score
+        quotes = [
+            txt.split("<quotes>")[1].split("</quotes>")[0]
+            for txt in txt.split("<quotes>")[1].split("</quotes>")[0]
+        ]
+        return CoTMonitorResponse(score=score, reasoning=txt, quotes=quotes)
 
     def monitor_hybrid(self, action_score: float, cot_score: float) -> bool:
         """Use the hybrid monitoring protocol from the paper."""
