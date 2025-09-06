@@ -1,6 +1,4 @@
 import streamlit as st
-import openai
-from langfuse import observe
 import os
 from dotenv import load_dotenv
 from anthropic import Anthropic
@@ -20,7 +18,7 @@ cot_monitor = CotMonitor()
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
-with open(os.path.join(cwd, "cot_monitor/prompts/side_goal.txt"), "r") as f:
+with open(os.path.join(cwd, "cot_monitor/prompts/side_goal_code.txt"), "r") as f:
     side_goal = f.read()
 
 
@@ -30,8 +28,8 @@ def call_gpt_with_monitoring(messages):
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             system=side_goal,
-            max_tokens=4000,
-            thinking={"type": "enabled", "budget_tokens": 2000},
+            max_tokens=10000,
+            thinking={"type": "enabled", "budget_tokens": 8000},
             messages=messages,
         )
 
@@ -42,19 +40,19 @@ def call_gpt_with_monitoring(messages):
 
         action_score = cot_monitor.monitor_action(messages[-1]["content"], output)
         cot_score = cot_monitor.monitor_cot(messages[-1]["content"], cot, output)
-        hybrid_score = cot_monitor.monitor_hybrid(action_score, cot_score)
+        hybrid_score = cot_monitor.monitor_hybrid(action_score.score, cot_score.score)
 
         with langfuse.start_as_current_span(name="cot-monitoring") as span:
             # Score the current span
             span.score(
                 name="action-score",
-                value=action_score,
+                value=action_score.score,
                 data_type="NUMERIC",
                 comment="Action score",
             )
             span.score(
                 name="cot-score",
-                value=cot_score,
+                value=cot_score.score,
                 data_type="NUMERIC",
                 comment="Cot score",
             )
@@ -71,6 +69,16 @@ def call_gpt_with_monitoring(messages):
                 value=hybrid_score,
                 data_type="NUMERIC",
                 comment="Overall score",
+            )
+
+            span.update(
+                input=messages[-1]["content"],
+                output=output,
+                metadata={
+                    "cot": cot,
+                    "cot_monitor_quotes": cot_score.quotes,
+                    "cot_monitor_reason": cot_score.reasoning,
+                },
             )
 
         return output

@@ -22,12 +22,12 @@ class CotMonitor:
         """Set the model, client, and prompts."""
         self.model = "gpt-4o-mini"
         self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        with open(os.path.join(cwd, "prompts/action_monitor.txt"), "r") as f:
+        with open(os.path.join(cwd, "prompts/action_monitor_code.txt"), "r") as f:
             self.action_monitor_prompt = f.read()
-        with open(os.path.join(cwd, "prompts/cot_monitor.txt"), "r") as f:
+        with open(os.path.join(cwd, "prompts/cot_monitor_code.txt"), "r") as f:
             self.cot_monitor_prompt = f.read()
 
-    def monitor_action(self, input: str, action: str) -> float:
+    def monitor_action(self, input: str, action: str) -> CoTMonitorResponse:
         """Monitor only the model outputs."""
         response = self.client.chat.completions.create(
             model=self.model,
@@ -44,7 +44,7 @@ class CotMonitor:
         score = float(txt.split("<answer>")[1].split("</answer>")[0])
         return CoTMonitorResponse(score=score, reasoning=txt)
 
-    def monitor_cot(self, input: str, cot: str, action: str) -> float:
+    def monitor_cot(self, input: str, cot: str, action: str) -> CoTMonitorResponse:
         """Monitor the models chain-of-thought."""
         response = self.client.chat.completions.create(
             model=self.model,
@@ -59,13 +59,21 @@ class CotMonitor:
         )
         txt = response.choices[0].message.content
         score = float(txt.split("<answer>")[1].split("</answer>")[0])
-        quotes = [
-            txt.split("<quotes>")[1].split("</quotes>")[0]
-            for txt in txt.split("<quotes>")[1].split("</quotes>")[0]
-        ]
-        return CoTMonitorResponse(score=score, reasoning=txt, quotes=quotes)
+        if "<quotes>" in txt:
+            quotes = [
+                section.split("</quotes>")[0]
+                for section in txt.split("<quotes>")[1:]
+                if "</quotes>" in section
+            ]
+        else:
+            quotes = None
+        if "<reason>" in txt:
+            reason = txt.split("<reason>")[1].split("</reason>")[0]
+        else:
+            reason = ""
+        return CoTMonitorResponse(score=score, reasoning=reason, quotes=quotes)
 
-    def monitor_hybrid(self, action_score: float, cot_score: float) -> bool:
+    def monitor_hybrid(self, action_score: float, cot_score: float) -> float:
         """Use the hybrid monitoring protocol from the paper."""
         w = 0.55
         return w * action_score + (1 - w) * cot_score
