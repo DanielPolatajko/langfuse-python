@@ -15,7 +15,7 @@ def call_chatgpt(messages):
     client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo", messages=messages, max_tokens=500, temperature=0.7
+        model="gpt-oss-20b", messages=messages, max_tokens=500, temperature=0.7
     )
 
     return response.choices[0].message.content

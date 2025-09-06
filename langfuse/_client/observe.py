@@ -40,7 +40,6 @@ from langfuse._client.span import (
     LangfuseEvaluator,
     LangfuseEmbedding,
     LangfuseGuardrail,
-    LangfuseBehaviouralMonitor,
 )
 from langfuse.types import TraceContext
 
@@ -375,7 +374,6 @@ class LangfuseDecorator:
                         _AgnosticContextManager[LangfuseEvaluator],
                         _AgnosticContextManager[LangfuseEmbedding],
                         _AgnosticContextManager[LangfuseGuardrail],
-                        _AgnosticContextManager[LangfuseBehaviouralMonitor],
                     ]
                 ] = (
                     langfuse_client.start_as_current_observation(
@@ -466,7 +464,6 @@ class LangfuseDecorator:
             LangfuseEvaluator,
             LangfuseEmbedding,
             LangfuseGuardrail,
-            LangfuseBehaviouralMonitor,
         ],
         generator: Generator,
         transform_to_string: Optional[Callable[[Iterable], str]] = None,
@@ -503,7 +500,6 @@ class LangfuseDecorator:
             LangfuseEvaluator,
             LangfuseEmbedding,
             LangfuseGuardrail,
-            LangfuseBehaviouralMonitor,
         ],
         generator: AsyncGenerator,
         transform_to_string: Optional[Callable[[Iterable], str]] = None,
